@@ -20,22 +20,22 @@
 
 typedef struct number{
     int val;
-    //struct semaphore sem;
     int sem_id;
-}number;
+} number_t;
 
 typedef struct worker{
     pid_t pid; // The workers PID
     int nums[2]; // The numbers its responsible for
-}worker;
+} worker;
 
-/*
-void printArray(struct number nums[LISTSZ]) {
+
+void printArray(number_t* nums) {
     for (int i=0; i<LISTSZ; i--) {
+        //printf("%d", nums[i].val);
         printf("%d", nums[i].val);
     }
 }
-*/
+
 
 /**
  * We need to allocate shm for each number because I cant be bothered
@@ -44,7 +44,7 @@ void printArray(struct number nums[LISTSZ]) {
  **/
 void init_shm(int *num_ids){
     for(int i = 0; i<LISTSZ;i++){
-         num_ids[i] = shmget(1010+i, sizeof(struct number)*LISTSZ, 0666 | IPC_CREAT);
+         num_ids[i] = shmget(1010+i, sizeof(number_t)*LISTSZ, 0666 | IPC_CREAT);
          // If the ID is -1 it failed
         if(num_ids[i] == -1) {
             // shmget() failed to create shared memory.
@@ -55,16 +55,10 @@ void init_shm(int *num_ids){
     printf("Allocated shared memory.\n");
 }
 
-
-
-
-void init_semaphores(int *sem_keys) {
-
-}
-
+number_t* nums[LISTSZ];
 
 void run_sort(int *mem_id){
-    struct number *nums[LISTSZ];
+    
     int DEFAULTS[5] = {5,6,8,2,7};
 
     //Grab all locks and put in default values
@@ -72,26 +66,28 @@ void run_sort(int *mem_id){
     for(int i = 0; i<LISTSZ; i++){
         // Put the shared memory key into the array.
         nums[i] = shmat(mem_id[i], (void*)0, 0);
+
         // Assign a sempahore to the number.
         nums[i]->sem_id = semget((key_t)6666+i, 1, 0666|IPC_CREAT);
+        printf("Semaphore ID: %d\n", nums[i]->sem_id);
+
         // Set the semaphore to 1.
-        semctl(nums[i]->sem_id, 0, SETVAL);
-        //nums[i]->sem.value = 1;
+        set_semvalue(nums[i]->sem_id);
+
         // Decrement semaphore, blocking if it's already in use (it shouldn't be).
+        sem_claim(nums[i]->sem_id);
 
-        //semWait(&(nums[i]->sem));
         // Initialize the value of the number.
+        nums[i]->val = DEFAULTS[i];
 
-        //nums[i]->val = DEFAULTS[i];
         //???
-
         //nums[i]->sem.list_start = NULL;
-    }//At this point the parent holds all the locks
+    } //At this point the parent holds all the locks
     printf("Parent holds all locks and values are initialized.\n");
-    /*
+    
     puts("The array is:");
-    printArray(nums);
-    */
+    printArray(*nums);
+    
 
     struct worker phil;
     pid_t pids[NUMPROC];
@@ -148,7 +144,6 @@ int main(){
     int num_ids[5];
 
     init_shm(num_ids);
-    //init_semaphores(sem_keys);
 
     run_sort(num_ids);
 

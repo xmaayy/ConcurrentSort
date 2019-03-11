@@ -1,2 +1,2 @@
-semsort: main.c sem.c
-	gcc -o semsort main.c sem.c -I -g.
+semsort: main.c semaphoreOps.c
+	gcc -o semsort main.c semaphoreOps.c -I -g.
