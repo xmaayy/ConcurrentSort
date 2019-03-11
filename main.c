@@ -10,14 +10,18 @@
 #include <sys/time.h>
 #include <time.h>
 
-#include "sem.h"
+//#include "sem.h"
+#include "semaphoreOps.h"
+#include <sys/sem.h>
+#include "semun.h"
 
 #define LISTSZ 5
 #define NUMPROC 4
 
 typedef struct number{
     int val;
-    struct semaphore sem;
+    //struct semaphore sem;
+    int sem_id;
 }number;
 
 typedef struct worker{
@@ -25,6 +29,13 @@ typedef struct worker{
     int nums[2]; // The numbers its responsible for
 }worker;
 
+/*
+void printArray(struct number nums[LISTSZ]) {
+    for (int i=0; i<LISTSZ; i--) {
+        printf("%d", nums[i].val);
+    }
+}
+*/
 
 /**
  * We need to allocate shm for each number because I cant be bothered
@@ -45,20 +56,42 @@ void init_shm(int *num_ids){
 }
 
 
+
+
+void init_semaphores(int *sem_keys) {
+
+}
+
+
 void run_sort(int *mem_id){
-    struct number *nums[5];
+    struct number *nums[LISTSZ];
     int DEFAULTS[5] = {5,6,8,2,7};
 
     //Grab all locks and put in default values
     printf("Parent aquiring locks and filling values.\n");
     for(int i = 0; i<LISTSZ; i++){
+        // Put the shared memory key into the array.
         nums[i] = shmat(mem_id[i], (void*)0, 0);
-        nums[i]->sem.value = 1;
-        semWait(&(nums[i]->sem));
-        nums[i]->val = DEFAULTS[i];
-        nums[i]->sem.list_start = NULL;
+        // Assign a sempahore to the number.
+        nums[i]->sem_id = semget((key_t)6666+i, 1, 0666|IPC_CREAT);
+        // Set the semaphore to 1.
+        semctl(nums[i]->sem_id, 0, SETVAL);
+        //nums[i]->sem.value = 1;
+        // Decrement semaphore, blocking if it's already in use (it shouldn't be).
+
+        //semWait(&(nums[i]->sem));
+        // Initialize the value of the number.
+
+        //nums[i]->val = DEFAULTS[i];
+        //???
+
+        //nums[i]->sem.list_start = NULL;
     }//At this point the parent holds all the locks
     printf("Parent holds all locks and values are initialized.\n");
+    /*
+    puts("The array is:");
+    printArray(nums);
+    */
 
     struct worker phil;
     pid_t pids[NUMPROC];
@@ -106,12 +139,17 @@ void run_sort(int *mem_id){
 
 }
 
+
+
 int main(){
     // One semaphore per number
-    struct semaphore sems[LISTSZ];
+    //struct semaphore sems[LISTSZ];
+    //int sem_keys[5];
     int num_ids[5];
 
     init_shm(num_ids);
+    //init_semaphores(sem_keys);
+
     run_sort(num_ids);
 
     return 0;
