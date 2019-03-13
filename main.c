@@ -25,16 +25,9 @@ typedef struct number{
 
 typedef struct worker{
     pid_t pid; // The workers PID
-    int nums[2]; // The numbers its responsible for
+    int place; // The worker's place at the table.
+    number_t* nums[2]; // Pointers to the numbers its responsible for
 } worker;
-
-
-void printArray(number_t* nums) {
-    for (int i=0; i<LISTSZ; i--) {
-        //printf("%d", nums[i].val);
-        printf("%d", nums[i].val);
-    }
-}
 
 
 /**
@@ -55,21 +48,29 @@ void init_shm(int *num_ids){
     printf("Allocated shared memory.\n");
 }
 
+// Array containing pointers to each struct in shared memory
 number_t* nums[LISTSZ];
 
-void run_sort(int *mem_id){
-    
+// This method gets called with nums (above) as a parameter
+void printArray(number_t** num) {
+    for (int i=0; i<LISTSZ; i++) {
+        printf("%d", num[i]->val); // compiles fine but doesn't work
+    }
+    puts(""); // newline
+}
+
+void init_array(int* mem_id) {
     int DEFAULTS[5] = {5,6,8,2,7};
 
     //Grab all locks and put in default values
     printf("Parent aquiring locks and filling values.\n");
     for(int i = 0; i<LISTSZ; i++){
         // Put the shared memory key into the array.
-        nums[i] = shmat(mem_id[i], (void*)0, 0);
+        nums[i] = (number_t*)shmat(mem_id[i], (void*)0, 0);
 
         // Assign a sempahore to the number.
         nums[i]->sem_id = semget((key_t)6666+i, 1, 0666|IPC_CREAT);
-        printf("Semaphore ID: %d\n", nums[i]->sem_id);
+        //printf("Semaphore ID: %d\n", nums[i]->sem_id);
 
         // Set the semaphore to 1.
         set_semvalue(nums[i]->sem_id);
@@ -79,16 +80,14 @@ void run_sort(int *mem_id){
 
         // Initialize the value of the number.
         nums[i]->val = DEFAULTS[i];
-
-        //???
-        //nums[i]->sem.list_start = NULL;
     } //At this point the parent holds all the locks
     printf("Parent holds all locks and values are initialized.\n");
     
-    puts("The array is:");
-    printArray(*nums);
-    
+    printf("The array is: ");
+    printArray(nums);
+}
 
+void run_sort(int *mem_id) {    
     struct worker phil;
     pid_t pids[NUMPROC];
     int count;  // I dont use count in the for loop
@@ -96,29 +95,38 @@ void run_sort(int *mem_id){
     for(int i = 0; i<NUMPROC; i++){
         pids[i] = fork();
         if(pids[i] == -1){
-            // fork failed to create child.
+            // fork failed to create child. Terminate program.
             perror("Failed to create child process.\n");
             exit(EXIT_FAILURE);
         } else if (pids[i] == 0) {
+            // Initialize this child process.
+            // Let its assigned worker know its pid and the number_t-s for which
+            // it is responsible.
             phil.pid = pids[i];
-            phil.nums[0] = i;
-            phil.nums[1] = (i+1)%5;
+            phil.place = i;
+            phil.nums[0]->val = i;
+            phil.nums[1]->val = (i+1)%5;
             count = i;
             break;
         }
     }   // Now we have all the child processes running. Now we need
         // to model them
-    
-    switch (pids[count%5])
+    printf("Worker %d\n", count);
+    // Take the value of count at the time this was forked, mod 5.
+    //switch (pids[count%5])
+    switch(pids[count%5])
     {
         case 0:
             printf("I am worker %d and I handle numbers %d and %d\n",\
-                        count, phil.nums[0],phil.nums[1]);
-
+                        count, phil.nums[0]->val, phil.nums[1]->val);
             
-            
+            while(1) {
+                
+                sem_claim(phil.nums[0]->sem_id);
+            }
             exit(EXIT_SUCCESS);
             break;
+
         default:;
             // The parent process should wait until all the children have
             // finished working.
@@ -144,6 +152,7 @@ int main(){
     int num_ids[5];
 
     init_shm(num_ids);
+    init_array(num_ids);
 
     run_sort(num_ids);
 
