@@ -155,9 +155,11 @@ number_t* nums[LISTSZ];
  *
  *  mem_id: An array containing keys of all the shared memory segments.
  */
-void init_array(int* mem_id) {
-    int DEFAULTS[5] = {5,6,8,2,7};
+void init_array(int* mem_id, int test_case) {
+    //int DEFAULTS[5] = {5,6,8,2,7};
     // Array containing pointers to each struct in shared memory
+
+    int* value_array =  test_arrays[test_case];
     
     //Grab all locks and put in default values
     printf("Parent aquiring locks and filling values.\n");
@@ -176,7 +178,7 @@ void init_array(int* mem_id) {
         sem_claim(nums[i]->sem_id);
 
         // Initialize the value of the number.
-        nums[i]->val = DEFAULTS[i];
+        nums[i]->val = value_array[i];
     } //At this point the parent holds all the locks
     printf("Parent holds all locks and values are initialized.\n");
     
@@ -316,7 +318,7 @@ int main(int argc, char* argv[]){
     // Set up the shared memory.
     init_shm(num_ids);
     // Populate the shared memory with values.
-    init_array(num_ids);
+    init_array(num_ids, testCase);
     // Run the sorting.
     run_sort(num_ids, debug);
 
