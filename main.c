@@ -16,6 +16,7 @@
 #include "semun.h"
 
 #include "semaphoreOps.h"
+#include "sampleArrays.h"
 
 
 // The number of items in the list.
@@ -276,7 +277,6 @@ bool prompt_debug() {
 } 
 
 
-
 int main(int argc, char* argv[]){
     bool debug = false;
     debug = prompt_debug();
@@ -289,12 +289,27 @@ int main(int argc, char* argv[]){
     // time.
 
     for(int i=0; i<argc; i++){
-    if(argv[i][0] =='-' && (argv[i][1] == 'd' || argv[i][1] == 'v')() {
-        puts("Running in DEBUG MODE");
-        debug = 1;
-    }
+        if(argv[i][0] =='-' && (argv[i][1] == 'd' || argv[i][1] == 'v')() {
+            puts("Running in DEBUG MODE");
+            debug = 1;
+        }
     }
     */
+
+   // If a number was supplied as an argument, pick a test case corresponding
+   // to it.
+   int testCase = 0;
+   if (argc > 1) {
+       int arg = argv[1][0] - '0';
+       if (arg >= 0 && arg <= NUMBER_OF_TESTS) {
+           printf("Using test case number %d.\n", arg);
+           testCase = arg;
+       } else {
+           puts("Invalid test number specified; using default test case(0).");
+       }
+   } else {
+       puts("Using default test case (0).");
+   }
 
     // Array to hold shared memory keys.
     int num_ids[LISTSZ];
