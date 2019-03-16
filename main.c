@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <time.h>
+#include <stdbool.h>
 
 //#include "sem.h"
 #include "semaphoreOps.h"
@@ -48,14 +49,54 @@ void init_shm(int *num_ids){
     printf("Allocated shared memory.\n");
 }
 
-
-
-void printArray(number_t** num) {
+void printArray(number_t* num[]) {
     for (int i=0; i<LISTSZ; i++) {
         printf("%d ", num[i]->val);
     }
     puts(""); // newline
 }
+
+int get_mean(number_t* num[]) {
+    int sum = 0;
+    for (int i=0; i<LISTSZ; i++) {
+        sum += num[i]->val;
+    }
+    // Mean = sum / number of terms.
+    return sum / LISTSZ;
+}
+
+int get_min(number_t* num[]) {
+    int minimum = num[0]->val;
+    for (int i=0; i<LISTSZ; i++) {
+        if (num[i]->val < minimum) {
+            minimum = num[i]->val;
+        }
+    }
+    return minimum;
+}
+
+int get_max(number_t* num[]) {
+    int maximum = num[0]->val;
+    for (int i=0; i<LISTSZ; i++) {
+        if (num[i]->val > maximum) {
+            maximum = num[i]->val;
+        }
+    }
+    return maximum;
+}
+
+void print_stats(number_t* num[]) {
+    int mean = get_mean(num);
+    int min = get_min(num);
+    int max = get_max(num);
+
+    printf("The mean value of the array is: %d.\n"
+            "The minimum value of the array is: %d.\n"
+            "The maximum value of the array is: %d.\n",
+            mean, min, max);
+}
+
+
 number_t* nums[LISTSZ];
 void init_array(int* mem_id) {
     int DEFAULTS[5] = {5,6,8,2,7};
@@ -87,7 +128,7 @@ void init_array(int* mem_id) {
 }
 
 
-void run_sort(int *mem_id) {    
+void run_sort(int *mem_id, bool debug) {    
     pid_t pids[NUMPROC];
     worker_t phil;
     int count;  // I dont use count in the for loop
@@ -111,7 +152,6 @@ void run_sort(int *mem_id) {
             // for.
             phil.nums[0] = nums[i];
             phil.nums[1] = nums[i+1];
-            //
             //phil.nums[0]->val = i;
             //phil.nums[1]->val = (i+1)%5;
             count = i;
@@ -122,7 +162,6 @@ void run_sort(int *mem_id) {
     }   // Now we have all the child processes running. Now we need
         // to model them
     // Take the value of count at the time this was forked, mod 5.
-
     switch(pids[count%5])
     {
         case 0:
@@ -149,9 +188,45 @@ void run_sort(int *mem_id) {
 
 }
 
+// Function used at startup to ask the user whether they wish to use debug mode.
+// Returns true if the user answers in the affirmative.
+bool prompt_debug() {
+    char answer[20];
+    bool result = false;
+
+    // Prompt the user.
+    printf("Would you like to use debug mode? [y/n] ");
+    scanf("%s", answer);
+    // Only check the first character; this allows for "y", "yes", "Y", "Yes"...
+    if (answer[0] == 'y' || answer[0] == 'Y') {
+        puts("Running in DEBUG MODE");
+        result = true;
+    }
+    return result;
+} 
 
 
-int main(){
+
+int main(int argc, char* argv[]){
+    bool debug = false;
+    debug = prompt_debug();
+
+    /*
+    // Program can be run with '-d' or '-v' (verbose) flag for debug mode.
+    // NB: The assignment asks us to use the user-prompt method so this is
+    // dummied out, but I think it's just nice to have; I have a bash script to
+    // make and run the program so being able to just have a CLA saves a little
+    // time.
+
+    for(int i=0; i<argc; i++){
+        if(argv[i][0] =='-' && (argv[i][1] == 'd' || argv[i][1] == 'v')() {
+            puts("Running in DEBUG MODE");
+            debug = 1;
+        }
+    }
+    */
+
+
     // One semaphore per number
     //struct semaphore sems[LISTSZ];
     //int sem_keys[5];
@@ -159,8 +234,9 @@ int main(){
 
     init_shm(num_ids);
     init_array(num_ids);
+    
 
-    run_sort(num_ids);
+    run_sort(num_ids, debug);
 
     return 0;
 }
