@@ -11,13 +11,21 @@
 #include <time.h>
 #include <stdbool.h>
 
-//#include "sem.h"
-#include "semaphoreOps.h"
+// Semaphore-related includes.
 #include <sys/sem.h>
-#include "semun.h" 
+#include "semun.h"
 
+#include "semaphoreOps.h"
+
+
+// The number of items in the list.
 #define LISTSZ 5
-#define NUMPROC 4
+// The number of processes to use. Should be equal to LISTSZ-1.
+//#define NUMPROC 4
+#define NUMPROC LISTSZ-1
+
+// Arbitrary value to start with for the numbering of shared memory keys.
+#define STARTING_SEMID 1010
 
 typedef struct number_t {
     int val;
@@ -27,7 +35,7 @@ typedef struct number_t {
 typedef struct worker {
     pid_t pid; // The workers PID
     int place; // The worker's place at the table.
-    number_t* nums[2]; // Pointers to the numbers its responsible for
+    number_t* nums[2]; // Pointers to the numbers it's responsible for.
 } worker_t;
 
 
@@ -36,9 +44,18 @@ typedef struct worker {
  * with how C deals with pointers to arrays of structures and how
  * that interacts with my IDE's type checker
  **/
+
+
+/* Function: init_shm
+ * --------------------
+ *  Initialize LISTSZ shared memory segments, each containing a number_t,
+ *  and populate an array with the identifiers of these segments.
+ *
+ *  num_ids: Array of ints in which the SHM identifiers will be stored.
+ */
 void init_shm(int *num_ids){
     for(int i = 0; i<LISTSZ;i++){
-         num_ids[i] = shmget(1010+i, sizeof(number_t)*LISTSZ, 0666 | IPC_CREAT);
+         num_ids[i] = shmget(STARTING_SEMID+i, sizeof(number_t)*LISTSZ, 0666 | IPC_CREAT);
          // If the ID is -1 it failed
         if(num_ids[i] == -1) {
             // shmget() failed to create shared memory.
@@ -49,6 +66,12 @@ void init_shm(int *num_ids){
     printf("Allocated shared memory.\n");
 }
 
+/* Function: print_Array
+ * --------------------
+ *  Print out the contents of the array of numbers.
+ *
+ *  num: The array of numbers to print out.
+ */
 void printArray(number_t* num[]) {
     for (int i=0; i<LISTSZ; i++) {
         printf("%d ", num[i]->val);
@@ -56,6 +79,12 @@ void printArray(number_t* num[]) {
     puts(""); // newline
 }
 
+/* Function: get_mean
+ * --------------------
+ *  Compute the mean of the array in shared memory.
+ *
+ *  num: The array of numbers.
+ */
 int get_mean(number_t* num[]) {
     int sum = 0;
     for (int i=0; i<LISTSZ; i++) {
@@ -65,6 +94,12 @@ int get_mean(number_t* num[]) {
     return sum / LISTSZ;
 }
 
+/* Function: get_max
+ * --------------------
+ *  Determine the maximum number contained in the array in shared memory.
+ *
+ *  num: The array of numbers.
+ */
 int get_min(number_t* num[]) {
     int minimum = num[0]->val;
     for (int i=0; i<LISTSZ; i++) {
@@ -75,6 +110,12 @@ int get_min(number_t* num[]) {
     return minimum;
 }
 
+/* Function: get_mean
+ * --------------------
+ *  Determine the minimum number contained in the array in shared memory.
+ *
+ *  num: The array of numbers.
+ */
 int get_max(number_t* num[]) {
     int maximum = num[0]->val;
     for (int i=0; i<LISTSZ; i++) {
@@ -85,6 +126,14 @@ int get_max(number_t* num[]) {
     return maximum;
 }
 
+
+/* Function: print_stats
+ * --------------------
+ * Print out the mean, minimum, and maximum values of the numbers contained
+ * in the array in shared memory.
+ *
+ *  num: The array of numbers.
+ */
 void print_stats(number_t* num[]) {
     int mean = get_mean(num);
     int min = get_min(num);
@@ -96,8 +145,15 @@ void print_stats(number_t* num[]) {
             mean, min, max);
 }
 
-
+// Array containing pointers to each number_t in use.
 number_t* nums[LISTSZ];
+
+/* Function: init_array
+ * --------------------
+ *  Get locks on each of the numbers in shared memory and populate their values.
+ *
+ *  mem_id: An array containing keys of all the shared memory segments.
+ */
 void init_array(int* mem_id) {
     int DEFAULTS[5] = {5,6,8,2,7};
     // Array containing pointers to each struct in shared memory
@@ -128,6 +184,16 @@ void init_array(int* mem_id) {
 }
 
 
+/* Function: run_sort
+ * --------------------
+ *  Execute the sorting. See the README for the algorithm used. If debug mode is
+ *  active, the child processes should print out whether or not they swap the
+ *  two numbers they are responsible for.
+ *
+ *  mem_id: An array containing keys of all the shared memory segments.
+ *  debug:  A boolean indicating whether the user has requested extra debugging
+ *          logging.
+ */
 void run_sort(int *mem_id, bool debug) {    
     pid_t pids[NUMPROC];
     worker_t phil;
@@ -188,8 +254,12 @@ void run_sort(int *mem_id, bool debug) {
 
 }
 
-// Function used at startup to ask the user whether they wish to use debug mode.
-// Returns true if the user answers in the affirmative.
+
+/* Function: init_array
+ * --------------------
+ *  Function used at startup to ask the user whether they wish to use debug mode.
+ *  Returns true if the user answers in the affirmative.
+ */
 bool prompt_debug() {
     char answer[20];
     bool result = false;
@@ -219,23 +289,20 @@ int main(int argc, char* argv[]){
     // time.
 
     for(int i=0; i<argc; i++){
-        if(argv[i][0] =='-' && (argv[i][1] == 'd' || argv[i][1] == 'v')() {
-            puts("Running in DEBUG MODE");
-            debug = 1;
-        }
+    if(argv[i][0] =='-' && (argv[i][1] == 'd' || argv[i][1] == 'v')() {
+        puts("Running in DEBUG MODE");
+        debug = 1;
+    }
     }
     */
 
-
-    // One semaphore per number
-    //struct semaphore sems[LISTSZ];
-    //int sem_keys[5];
-    int num_ids[5];
-
+    // Array to hold shared memory keys.
+    int num_ids[LISTSZ];
+    // Set up the shared memory.
     init_shm(num_ids);
+    // Populate the shared memory with values.
     init_array(num_ids);
-    
-
+    // Run the sorting.
     run_sort(num_ids, debug);
 
     return 0;
