@@ -13,21 +13,21 @@
 //#include "sem.h"
 #include "semaphoreOps.h"
 #include <sys/sem.h>
-#include "semun.h"
+#include "semun.h" 
 
 #define LISTSZ 5
 #define NUMPROC 4
 
-typedef struct number{
+typedef struct number_t {
     int val;
     int sem_id;
 } number_t;
 
-typedef struct worker{
+typedef struct worker {
     pid_t pid; // The workers PID
     int place; // The worker's place at the table.
     number_t* nums[2]; // Pointers to the numbers its responsible for
-} worker;
+} worker_t;
 
 
 /**
@@ -48,20 +48,19 @@ void init_shm(int *num_ids){
     printf("Allocated shared memory.\n");
 }
 
-// Array containing pointers to each struct in shared memory
-number_t* nums[LISTSZ];
 
-// This method gets called with nums (above) as a parameter
+
 void printArray(number_t** num) {
     for (int i=0; i<LISTSZ; i++) {
-        printf("%d", num[i]->val); // compiles fine but doesn't work
+        printf("%d ", num[i]->val);
     }
     puts(""); // newline
 }
-
+number_t* nums[LISTSZ];
 void init_array(int* mem_id) {
     int DEFAULTS[5] = {5,6,8,2,7};
-
+    // Array containing pointers to each struct in shared memory
+    
     //Grab all locks and put in default values
     printf("Parent aquiring locks and filling values.\n");
     for(int i = 0; i<LISTSZ; i++){
@@ -87,47 +86,54 @@ void init_array(int* mem_id) {
     printArray(nums);
 }
 
+
 void run_sort(int *mem_id) {    
-    struct worker phil;
     pid_t pids[NUMPROC];
+    worker_t phil;
     int count;  // I dont use count in the for loop
                 // because I used `i` first and dont wanna change
     for(int i = 0; i<NUMPROC; i++){
         pids[i] = fork();
+        
         if(pids[i] == -1){
             // fork failed to create child. Terminate program.
             perror("Failed to create child process.\n");
             exit(EXIT_FAILURE);
         } else if (pids[i] == 0) {
+            puts("Child process");
             // Initialize this child process.
             // Let its assigned worker know its pid and the number_t-s for which
             // it is responsible.
             phil.pid = pids[i];
+            // Let the worker know its place at the table.
             phil.place = i;
-            phil.nums[0]->val = i;
-            phil.nums[1]->val = (i+1)%5;
+            // Give the worker pointers to the two numbers it is responsible
+            // for.
+            phil.nums[0] = nums[i];
+            phil.nums[1] = nums[i+1];
+            //
+            //phil.nums[0]->val = i;
+            //phil.nums[1]->val = (i+1)%5;
             count = i;
+            printf("Created child process responsible for numbers %d and %d\n"
+            ,phil.nums[0]->val, phil.nums[1]->val);
             break;
         }
     }   // Now we have all the child processes running. Now we need
         // to model them
-    printf("Worker %d\n", count);
     // Take the value of count at the time this was forked, mod 5.
-    //switch (pids[count%5])
+
     switch(pids[count%5])
     {
         case 0:
             printf("I am worker %d and I handle numbers %d and %d\n",\
                         count, phil.nums[0]->val, phil.nums[1]->val);
             
-            while(1) {
-                
-                sem_claim(phil.nums[0]->sem_id);
-            }
             exit(EXIT_SUCCESS);
             break;
 
         default:;
+            puts("Default case");
             // The parent process should wait until all the children have
             // finished working.
             int status;

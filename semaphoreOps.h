@@ -3,5 +3,5 @@
 int set_semvalue(int sem_id);
 void del_semvalue(int sem_id);
 
-int semaphore_p(int sem_id);
-int semaphore_v(int sem_id);
+int sem_claim(int sem_id);
+int sem_release(int sem_id);

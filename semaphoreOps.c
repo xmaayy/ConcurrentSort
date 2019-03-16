@@ -22,7 +22,7 @@ int set_semvalue(int sem_id) {
 /*
  * Remove a semaphore's ID.
  */
-void del_semvalue(int sem_id) {
+int del_semvalue(int sem_id) {
     union semun sem_union;
 
     sem_union.val = 1;
