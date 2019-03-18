@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <stdbool.h>
+#include <signal.h>
 
 // Semaphore-related includes.
 #include <sys/sem.h>
@@ -244,7 +245,7 @@ int get_locks(worker_t *worker){
 
 /* Function: run_sort
  * --------------------
- *  Execute the sorting. See the README for the algorithm used. If debug mode is
+ *  Execute the sorting. See the discussion for the algorithm used. If debug mode is
  *  active, the child processes should print out whether or not they swap the
  *  two numbers they are responsible for.
  *
@@ -377,7 +378,6 @@ void get_nums(int nums[LISTSZ]){
     }
 
 }
-
 
 /* Function: prompt_debug
  * --------------------

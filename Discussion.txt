@@ -1,0 +1,41 @@
+This program sorts the array of 5 given characters in descending 
+(non-increasing) order. It is in essence a variation on the dining philosophers
+problem, implementing a bubblesort using concurrent processes.
+
+For all of the test cases in sampleArrays.h, the program executes correctly in
+sorting the supplied arrays in descending order. It has also worked for every
+instance of user-supplied numbers.
+
+
+What follows is pseudocode describing the sorting algorithm:
+
+Initialize the shared memory array {
+    create 5 shared memory sections, each containing a number.
+    get pointers to each of the shared memory sections and put them in an array.
+    assign semaphores to each of the individual sections.
+    claim all semaphore locks, and populate the shared memory segments with
+        provided values.
+    release the locks so that child processes can claim them as soon as they 
+        start running.
+}
+
+Spawn four worker processes {
+    fork() four times.
+    add 1 to the number of active children, stored in a separate semaphore.
+    assign two numbers (in shared memory) to each process.
+}
+
+Worker processes continually check their numbers {
+    if the numbers are out of order {
+        claim the locks on those numbers.
+        swap the numbers.
+        release the locks on those numbers.
+    }
+}
+
+Parent process waits untill all children finish working {
+    if the number of working children is zero OR the array is sorted {
+        kill all the child processes.
+        print out the sorted array, as well as its min, max, and mean.
+    }
+}
