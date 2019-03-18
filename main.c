@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <stdbool.h>
+#include <signal.h>
 
 // Semaphore-related includes.
 #include <sys/sem.h>
