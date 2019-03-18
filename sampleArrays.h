@@ -5,7 +5,7 @@
 const int TEST_ARRAY_KEY = 6666;
 
 
-const int test_arrays[5][5] = {
+const int test_arrays[NUMBER_OF_TESTS][5] = {
     {5,6,8,2,7},    // Mandatory test array.
     {10,9,11,5,7},  // Mandatory test array.
     {1,2,3,4,5},    // This one is a freebie.

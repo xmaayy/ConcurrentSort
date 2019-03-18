@@ -252,7 +252,7 @@ int get_locks(worker_t *worker){
 
 /* Function: run_sort
  * --------------------
- *  Execute the sorting. See the README for the algorithm used. If debug mode is
+ *  Execute the sorting. See the discussion for the algorithm used. If debug mode is
  *  active, the child processes should print out whether or not they swap the
  *  two numbers they are responsible for.
  *
@@ -353,7 +353,7 @@ void run_sort(int *mem_id, bool debug) {
 }
 
 
-/* Function: init_array
+/* Function: prompt_debug
  * --------------------
  *  Function used at startup to ask the user whether they wish to use debug mode.
  *  Returns true if the user answers in the affirmative.
