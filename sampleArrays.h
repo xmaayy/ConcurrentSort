@@ -8,7 +8,7 @@ const int TEST_ARRAY_KEY = 6666;
 const int test_arrays[NUMBER_OF_TESTS][5] = {
     {5,6,8,2,7},    // Mandatory test array.
     {10,9,11,5,7},  // Mandatory test array.
-    {1,2,3,4,5},    // This one is a freebie.
-    {5,4,3,2,1},    // Meanwhile, this one is the worst-case scenario.
+    {1,2,3,4,5},    // Meanwhile, this one is the worst-case scenario.
+    {5,4,3,2,1},    // This one is a freebie
     {8,5,6,7,9}     // No real motivation for this one.
 } ;
