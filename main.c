@@ -27,6 +27,7 @@
 
 // Arbitrary value to start with for the numbering of shared memory keys.
 #define STARTING_SEMID 1010
+#define SORT_SEMID 1008
 
 typedef struct number_t {
     int val;
@@ -41,11 +42,12 @@ typedef struct worker {
 
 
 /**
- * We need to allocate shm for each number because I cant be bothered
- * with how C deals with pointers to arrays of structures and how
- * that interacts with my IDE's type checker
+ * This is used to keep track of the number of children currently priocessing
+ * the array. It starts at 0, each child adds to it as they become active
+ * and the final check for wether or not sorting is complete involves checking 
+ * if children is NUMPROC
  **/
-
+int children;
 
 /* Function: init_shm
  * --------------------
@@ -128,6 +130,22 @@ int get_max(number_t* num[]) {
 }
 
 
+/* Function: is_sorted
+ * ---------------------
+ * Returns the number of unsorted elements in the array
+ * 0 if it is sorted in non-ascending order
+ */
+int is_sorted(number_t* num[]){
+    int unsorted = 0;
+    for(int i=0; i<LISTSZ-1; i++){
+        if(num[i]->val < num[i+1]->val){
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
 /* Function: print_stats
  * --------------------
  * Print out the mean, minimum, and maximum values of the numbers contained
@@ -161,6 +179,11 @@ void init_array(int* mem_id, int test_case) {
 
     int* value_array =  test_arrays[test_case];
     
+
+    // Create the children semaphore and initialize it to 0
+    children = semget((key_t)SORT_SEMID, 1, 0666|IPC_CREAT);
+    set_semvalue(children, 0);
+
     //Grab all locks and put in default values
     printf("Parent aquiring locks and filling values.\n");
     for(int i = 0; i<LISTSZ; i++){
@@ -172,18 +195,57 @@ void init_array(int* mem_id, int test_case) {
         //printf("Semaphore ID: %d\n", nums[i]->sem_id);
 
         // Set the semaphore to 1.
-        set_semvalue(nums[i]->sem_id);
+        set_semvalue(nums[i]->sem_id, 1);
 
         // Decrement semaphore, blocking if it's already in use (it shouldn't be).
+        //printf("Value of semaphore before claiming - %d\n", sem_check(nums[i]->sem_id));
         sem_claim(nums[i]->sem_id);
+        //printf("Value of semaphore after claiming - %d\n", sem_check(nums[i]->sem_id));
 
         // Initialize the value of the number.
         nums[i]->val = value_array[i];
     } //At this point the parent holds all the locks
     printf("Parent holds all locks and values are initialized.\n");
     
-    printf("The array is: ");
+    // Release locks so child processes can start as soon as they're created
+    // this could also be done in the parent process once all the children have 
+    // been created. It ends up being the same order of switching but impoerceptably
+    // faster if the children dont have to wait after being created
+    for(int i = 0; i<LISTSZ; i++){
+        sem_release(nums[i]->sem_id);
+    }
+
+    printf("Parent released locks. The array is: ");
     printArray(nums);
+    
+}
+
+/**
+ * Called when the children are notified that the sorting process is complete.
+ * No input no output, just a straight up call to exit and thats itS
+ */
+void handle_done(int sig){
+    printf("Parent notified child with PID %d that execution is complete\n", getpid());
+    exit(EXIT_SUCCESS);
+}
+
+/**
+ * We need to make sure that we never get only one lock. 
+ * If we do then the system can deadlock. (we should probably
+ * use a second sem for getting sems but w/e)
+ */
+int get_locks(worker_t *worker){
+    while(true){
+        if(sem_check(worker->nums[0]->sem_id) > 0 && 
+            sem_check(worker->nums[1]->sem_id) > 0)
+        {
+
+            sem_claim(worker->nums[0]->sem_id);
+            sem_claim(worker->nums[1]->sem_id);
+            break;
+        } 
+    }
+    return 0;
 }
 
 
@@ -210,7 +272,6 @@ void run_sort(int *mem_id, bool debug) {
             perror("Failed to create child process.\n");
             exit(EXIT_FAILURE);
         } else if (pids[i] == 0) {
-            puts("Child process");
             // Initialize this child process.
             // Let its assigned worker know its pid and the number_t-s for which
             // it is responsible.
@@ -221,8 +282,6 @@ void run_sort(int *mem_id, bool debug) {
             // for.
             phil.nums[0] = nums[i];
             phil.nums[1] = nums[i+1];
-            //phil.nums[0]->val = i;
-            //phil.nums[1]->val = (i+1)%5;
             count = i;
             printf("Created child process responsible for numbers %d and %d\n"
             ,phil.nums[0]->val, phil.nums[1]->val);
@@ -230,28 +289,63 @@ void run_sort(int *mem_id, bool debug) {
         }
     }   // Now we have all the child processes running. Now we need
         // to model them
-    // Take the value of count at the time this was forked, mod 5.
-    switch(pids[count%5])
+    switch(pids[count%4])
     {
-        case 0:
+        case 0:;
+            // Register signal handler for when parent determines the array
+            // is fully sorted
+            int temp;
+
+            // This release essentially shows the main loop that this is active
+            sem_release(children);
+
+            signal(SIGUSR1, handle_done);
             printf("I am worker %d and I handle numbers %d and %d\n",\
                         count, phil.nums[0]->val, phil.nums[1]->val);
-            
-            exit(EXIT_SUCCESS);
+
+            // Keep executing this loop until we're told to stop
+            // Basically, if a switch is needed, get locks, switch and
+            // release the lock
+            while(true){
+                if(phil.nums[0]->val < phil.nums[1]->val){
+                    sem_claim(children); // There should NEVER be a block here because
+                                        // this child added one to this sem
+                    get_locks(&phil);
+
+                    // Do the switch
+                    printf("Child %d switching %d with %d\n", phil.place, phil.nums[0]->val, phil.nums[1]->val);
+                    temp = phil.nums[0]->val;
+                    phil.nums[0]->val = phil.nums[1]->val;
+                    phil.nums[1]->val = temp;
+
+                    // Release all semaphores
+                    sem_release(phil.nums[0]->sem_id);
+                    sem_release(phil.nums[1]->sem_id);
+                    sem_release(children);
+                }
+            }
             break;
 
         default:;
-            puts("Default case");
             // The parent process should wait until all the children have
             // finished working.
             int status;
             pid_t pid;
-			int stillRunning = NUMPROC;
-			while(stillRunning > 0) {
-				pid = wait(&status);
-			    printf("Child with PID %ld exited with status 0x%x.\n", (long)pid, status);
-			    stillRunning--;			
-			}
+            
+            // If its unsorted or there is a locked process we cant consider
+            // the sorting job finished
+			while(sem_check(children)<NUMPROC | is_sorted(nums)) {}
+
+            // We now know its sorted because the above loop completed. 
+            // We need to notify all the children that the process is complete
+            for(int i = 0; i<NUMPROC; i++){
+                kill(pids[i], SIGUSR1);
+            }
+
+            //The proof is in the final state of the array
+            printf("The final sorted array is: ");
+            printArray(nums);
+
             break;
     }
 

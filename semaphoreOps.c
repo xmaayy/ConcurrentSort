@@ -6,10 +6,10 @@
  * Initialize a semaphore; this must be called before the semaphore can be
  * used.
  */
-int set_semvalue(int sem_id) {
+int set_semvalue(int sem_id, int val) {
     union semun sem_union;
 
-    sem_union.val = 1;
+    sem_union.val = val;
     if (semctl(sem_id, 0, SETVAL, sem_union) == -1) {
         // semctl() failure
         return 0;
@@ -74,3 +74,12 @@ int sem_release(int sem_id) {
     }
     return 1;
 }
+
+/**
+ * 
+ */
+
+int sem_check(int sem_id){
+    return semctl(sem_id, 0, GETVAL);
+}
+
