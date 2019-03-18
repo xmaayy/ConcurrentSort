@@ -1,13 +1,5 @@
-This program sorts the array of 5 given characters in descending 
-(non-increasing) order. It is in essence a variation on the dining philosophers
-problem, implementing a bubblesort using concurrent processes.
 
-For all of the test cases in sampleArrays.h, the program executes correctly in
-sorting the supplied arrays in descending order. It has also worked for every
-instance of user-supplied numbers.
-
-
-What follows is pseudocode describing the sorting algorithm:
+================== PSEUDO-CODE =====================
 
 Initialize the shared memory array {
     create 5 shared memory sections, each containing a number.
@@ -20,11 +12,13 @@ Initialize the shared memory array {
 }
 
 Spawn four worker processes {
-    fork() four times.
+    fork() four child processes
     add 1 to the number of active children, stored in a separate semaphore.
-    assign two numbers (in shared memory) to each process.
+    assign two numbers (from shared memory) to each process, these are what
+        they are responsible for sorting
 }
 
+Children -------------------
 Worker processes continually check their numbers {
     if the numbers are out of order {
         claim the locks on those numbers.
@@ -32,10 +26,33 @@ Worker processes continually check their numbers {
         release the locks on those numbers.
     }
 }
+---------------------------
 
-Parent process waits untill all children finish working {
-    if the number of working children is zero OR the array is sorted {
-        kill all the child processes.
+Parent Process =======================
+Parent process waits untill all children finish working and the array is sorted {
+        tell the child processes to stop
         print out the sorted array, as well as its min, max, and mean.
     }
 }
+======================================
+
+
+This program sorts the array of 5 given numbers in non-increasing order. 
+It is in essence a variation on the dining philosophers problem; implementing
+a bubblesort using concurrent processes. In this case the processes
+cannot deadlock because the dependencies are not circular, and the ends are only accessed
+by a single member, but our solution is extensible for longer number arrays
+and would work if the arrays had any number of dependencies. If you did not want to
+write an extensible solution you only need locks/semaphores for the elements that are
+accessed by more than one member; in this case the three middle elements.
+
+Our solution ensures mutual exclusion with all elements using one semaphore per array element,
+and uses one final semaphore for use as a control to ensure the main process does not 
+prematurely terminate the children doing the sorting.
+
+--------------- DISCUSSION ------------------------
+
+For all of the test cases in sampleArrays.h, the program executes correctly in
+sorting the supplied arrays in non-ascending order. It has also worked for every
+instance of user-supplied numbers.
+
