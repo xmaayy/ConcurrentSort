@@ -41,6 +41,8 @@ typedef struct worker {
 } worker_t;
 
 
+bool debug = false;
+
 /**
  * This is used to keep track of the number of children currently priocessing
  * the array. It starts at 0, each child adds to it as they become active
@@ -158,6 +160,8 @@ void print_stats(number_t* num[]) {
     int min = get_min(num);
     int max = get_max(num);
 
+    printf("The final sorted array is: ");
+    printArray(num);
     printf("The mean value of the array is: %d.\n"
             "The minimum value of the array is: %d.\n"
             "The maximum value of the array is: %d.\n",
@@ -173,12 +177,9 @@ number_t* nums[LISTSZ];
  *
  *  mem_id: An array containing keys of all the shared memory segments.
  */
-void init_array(int* mem_id, int test_case) {
+void init_array(int* mem_id, int* value_array) {
     //int DEFAULTS[5] = {5,6,8,2,7};
     // Array containing pointers to each struct in shared memory
-
-    int* value_array =  test_arrays[test_case];
-    
 
     // Create the children semaphore and initialize it to 0
     children = semget((key_t)SORT_SEMID, 1, 0666|IPC_CREAT);
@@ -206,14 +207,6 @@ void init_array(int* mem_id, int test_case) {
         nums[i]->val = value_array[i];
     } //At this point the parent holds all the locks
     printf("Parent holds all locks and values are initialized.\n");
-    
-    // Release locks so child processes can start as soon as they're created
-    // this could also be done in the parent process once all the children have 
-    // been created. It ends up being the same order of switching but impoerceptably
-    // faster if the children dont have to wait after being created
-    for(int i = 0; i<LISTSZ; i++){
-        sem_release(nums[i]->sem_id);
-    }
 
     printf("Parent released locks. The array is: ");
     printArray(nums);
@@ -259,7 +252,7 @@ int get_locks(worker_t *worker){
  *  debug:  A boolean indicating whether the user has requested extra debugging
  *          logging.
  */
-void run_sort(int *mem_id, bool debug) {    
+void run_sort(int *mem_id) {    
     pid_t pids[NUMPROC];
     worker_t phil;
     int count;  // I dont use count in the for loop
@@ -302,7 +295,8 @@ void run_sort(int *mem_id, bool debug) {
             signal(SIGUSR1, handle_done);
             printf("I am worker %d and I handle numbers %d and %d\n",\
                         count, phil.nums[0]->val, phil.nums[1]->val);
-
+            usleep(10000);  // Otherwise the children start sorting before the others
+                            // have started. Its still correct but would look odd
             // Keep executing this loop until we're told to stop
             // Basically, if a switch is needed, get locks, switch and
             // release the lock
@@ -313,7 +307,10 @@ void run_sort(int *mem_id, bool debug) {
                     get_locks(&phil);
 
                     // Do the switch
-                    printf("Child %d switching %d with %d\n", phil.place, phil.nums[0]->val, phil.nums[1]->val);
+                    if(debug){
+                        printf("Child %d switching %d with %d\n", 
+                        phil.place, phil.nums[0]->val, phil.nums[1]->val);
+                    }
                     temp = phil.nums[0]->val;
                     phil.nums[0]->val = phil.nums[1]->val;
                     phil.nums[1]->val = temp;
@@ -322,6 +319,11 @@ void run_sort(int *mem_id, bool debug) {
                     sem_release(phil.nums[0]->sem_id);
                     sem_release(phil.nums[1]->sem_id);
                     sem_release(children);
+                } else {
+                    if(debug) {
+                        printf("Child %d not switching %d with %d\n", 
+                            phil.place, phil.nums[0]->val, phil.nums[1]->val);
+                    }
                 }
             }
             break;
@@ -331,7 +333,15 @@ void run_sort(int *mem_id, bool debug) {
             // finished working.
             int status;
             pid_t pid;
-            
+
+            // Release locks so child processes can start as soon as they're created
+            // this could also be done in the parent process once all the children have 
+            // been created. It ends up being the same order of switching but impoerceptably
+            // faster if the children dont have to wait after being created
+            for(int i = 0; i<LISTSZ; i++){
+                sem_release(nums[i]->sem_id);
+            }
+            printf("Children are ready\n");
             // If its unsorted or there is a locked process we cant consider
             // the sorting job finished
 			while(sem_check(children)<NUMPROC | is_sorted(nums)) {}
@@ -343,8 +353,8 @@ void run_sort(int *mem_id, bool debug) {
             }
 
             //The proof is in the final state of the array
-            printf("The final sorted array is: ");
-            printArray(nums);
+            sleep(0);
+            print_stats(nums);
 
             break;
     }
@@ -352,14 +362,30 @@ void run_sort(int *mem_id, bool debug) {
 }
 
 
-/* Function: init_array
+/* Function: get_nums
+ * --------------------
+ *  Function used at startup to ask the user what numbers should
+ *  be used for the stats/sorting portion of the code
+ */
+void get_nums(int nums[LISTSZ]){
+    printf("Please input 5 numbers:\n");
+    int number;
+    for(int i=0; i<LISTSZ; i++){
+        printf(">");
+        scanf("%d", &number);
+        nums[i] = number;
+    }
+
+}
+
+
+/* Function: prompt_debug
  * --------------------
  *  Function used at startup to ask the user whether they wish to use debug mode.
  *  Returns true if the user answers in the affirmative.
  */
-bool prompt_debug() {
+void prompt_debug() {
     char answer[20];
-    bool result = false;
 
     // Prompt the user.
     printf("Would you like to use debug mode? [y/n] ");
@@ -367,15 +393,13 @@ bool prompt_debug() {
     // Only check the first character; this allows for "y", "yes", "Y", "Yes"...
     if (answer[0] == 'y' || answer[0] == 'Y') {
         puts("Running in DEBUG MODE");
-        result = true;
+        debug = true;
     }
-    return result;
 } 
 
 
 int main(int argc, char* argv[]){
-    bool debug = false;
-    debug = prompt_debug();
+    prompt_debug();
 
     /*
     // Program can be run with '-d' or '-v' (verbose) flag for debug mode.
@@ -392,29 +416,32 @@ int main(int argc, char* argv[]){
     }
     */
 
-   // If a number was supplied as an argument, pick a test case corresponding
-   // to it.
-   int testCase = 0;
-   if (argc > 1) {
-       int arg = argv[1][0] - '0';
-       if (arg >= 0 && arg <= NUMBER_OF_TESTS) {
-           printf("Using test case number %d.\n", arg);
-           testCase = arg;
-       } else {
-           puts("Invalid test number specified; using default test case(0).");
-       }
-   } else {
-       puts("Using default test case (0).");
-   }
-
     // Array to hold shared memory keys.
     int num_ids[LISTSZ];
     // Set up the shared memory.
     init_shm(num_ids);
-    // Populate the shared memory with values.
-    init_array(num_ids, testCase);
+
+   // If a number was supplied as an argument, pick a test case corresponding
+   // to it.
+    int testCase = 0;
+    int array[LISTSZ];
+    if (argc > 1) {
+        int arg = argv[1][0] - '0';
+        if (arg >= 0 && arg <= NUMBER_OF_TESTS) {
+            printf("Using test case number %d.\n", arg);
+            testCase = arg;
+        } else {
+            puts("Invalid test number specified; using default test case(0).");
+        }
+        // Populate the shared memory with values.
+        init_array(num_ids, test_arrays[testCase]);
+    } else {
+        // Populate the shared memory with values.
+        get_nums(array);
+        init_array(num_ids, array);
+    }
     // Run the sorting.
-    run_sort(num_ids, debug);
+    run_sort(num_ids);
 
     return 0;
 }

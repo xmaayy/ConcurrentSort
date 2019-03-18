@@ -11,4 +11,4 @@ const int test_arrays[5][5] = {
     {1,2,3,4,5},    // This one is a freebie.
     {5,4,3,2,1},    // Meanwhile, this one is the worst-case scenario.
     {8,5,6,7,9}     // No real motivation for this one.
-} ;
+};
