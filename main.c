@@ -214,18 +214,21 @@ void init_array(int* mem_id, int* value_array) {
     
 }
 
-/**
+/** handle_done
+ * ---------------------------------------
  * Called when the children are notified that the sorting process is complete.
  * No input no output, just a straight up call to exit and thats itS
  */
 void handle_done(int sig){
-    printf("Parent notified child with PID %d that execution is complete\n", getpid());
+    printf("Parent notified child with PID %d that execution is complete\n", 
+            getpid());
     exit(EXIT_SUCCESS);
 }
 
-/**
- * We need to make sure that we never get only one lock. 
- * If we do then the system can deadlock. (we should probably
+/** get_locks
+ * -----------------------
+ * Ensures that we never get only one lock. If we do and its circular 
+ * then the system can deadlock. (we should probably
  * use a second sem for getting sems but w/e)
  */
 int get_locks(worker_t *worker){
@@ -421,8 +424,8 @@ int main(int argc, char* argv[]){
     // Set up the shared memory.
     init_shm(num_ids);
 
-   // If a number was supplied as an argument, pick a test case corresponding
-   // to it.
+    // If a number was supplied as an argument, pick a test case corresponding
+    // to it. Otherwise user supplied
     int testCase = 0;
     int array[LISTSZ];
     if (argc > 1) {

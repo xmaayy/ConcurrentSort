@@ -75,10 +75,12 @@ int sem_release(int sem_id) {
     return 1;
 }
 
-/**
+/**sem_check
+ * ---------------
+ * peek the value of a semaphore without editing it
  * 
+ * return: int - Value of semaphore
  */
-
 int sem_check(int sem_id){
     return semctl(sem_id, 0, GETVAL);
 }
