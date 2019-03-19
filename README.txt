@@ -1,3 +1,7 @@
+Xander May - 101038396
+Joshua Fryer - 101032335
+
+
 To run the program, first run 'make' to update the binary (the one already
 compiled should work, but no sense in taking risks). Then, run the binary "./STATS".
 By default using make, the binary will be called STATS as is specified in the document. 
